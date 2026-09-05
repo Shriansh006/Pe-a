@@ -65,9 +65,14 @@ export function computeWinProb(input: ScorelineInput): WinProb {
   } = input;
 
   const mins = Math.max(0, Math.min(minute ?? 0, totalMinutes));
-  const remaining = (totalMinutes - mins) / totalMinutes;
-  const lamH = (homeXg ?? 0) + lambdaHome * remaining;
-  const lamA = (awayXg ?? 0) + lambdaAway * remaining;
+  const played = Math.min(mins / totalMinutes, 1);
+  const remaining = 1 - played;
+  const tiltHome =
+    homeXg !== null && homeXg > 0 && played > 0 ? homeXg / (lambdaHome * played) : 1;
+  const tiltAway =
+    awayXg !== null && awayXg > 0 && played > 0 ? awayXg / (lambdaAway * played) : 1;
+  const lamH = lambdaHome * remaining * tiltHome;
+  const lamA = lambdaAway * remaining * tiltAway;
   const score = currentScore ?? { home: 0, away: 0 };
   const curH = score.home ?? 0;
   const curA = score.away ?? 0;

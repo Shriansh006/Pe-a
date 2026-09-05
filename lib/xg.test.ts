@@ -64,9 +64,19 @@ describe("matchWinProb (golden values from the Python fit)", () => {
       homeXg: 0.4,
       awayXg: 0.9,
     });
-    expect(winProb.home).toBeCloseTo(0.32, 3);
-    expect(winProb.draw).toBeCloseTo(0.2077, 3);
-    expect(winProb.away).toBeCloseTo(0.4723, 3);
+    expect(winProb.home).toBeCloseTo(0.1543, 3);
+    expect(winProb.draw).toBeCloseTo(0.1814, 3);
+    expect(winProb.away).toBeCloseTo(0.6644, 3);
+  });
+
+  test("late in a decided match probabilities collapse to the score", () => {
+    const { winProb } = matchWinProb({
+      homeTeam: "Real Madrid",
+      awayTeam: "Barcelona",
+      currentScore: { home: 1, away: 0 },
+      minute: 95,
+    });
+    expect(winProb.home).toBeGreaterThan(0.9);
   });
 
   test("unknown teams fall back to the heuristic model", () => {
