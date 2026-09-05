@@ -8,16 +8,23 @@ import {
   todayKey,
 } from "@/lib/understat";
 import { fetchLaLigaTodayFromFootballData } from "@/lib/football-data";
+import { matchWinProb } from "@/lib/xg";
 
 type LiveResult = {
   source: "understat" | "football-data";
-  matches: LaLigaMatch[];
+  matches: (LaLigaMatch & {
+    winProb: { home: number; draw: number; away: number };
+    model: "dixon-coles" | "heuristic";
+  })[];
 };
 
 const getLiveData = unstable_cache(
   async (dateKey: string, season: string): Promise<LiveResult> => {
+    let source: LiveResult["source"];
+    let matches: LaLigaMatch[];
     try {
-      return { source: "understat", matches: await getTodayLaLigaMatches(dateKey, season) };
+      source = "understat";
+      matches = await getTodayLaLigaMatches(dateKey, season);
     } catch (understatErr) {
       const apiKey = process.env.FOOTBALL_DATA_API_KEY;
       if (!apiKey) {
@@ -25,11 +32,23 @@ const getLiveData = unstable_cache(
           `understat failed (${understatErr instanceof Error ? understatErr.message : String(understatErr)}) and no FOOTBALL_DATA_API_KEY is set for fallback`
         );
       }
-      return {
-        source: "football-data",
-        matches: await fetchLaLigaTodayFromFootballData(dateKey, apiKey),
-      };
+      source = "football-data";
+      matches = await fetchLaLigaTodayFromFootballData(dateKey, apiKey);
     }
+    return {
+      source,
+      matches: matches.map((m) => {
+        const { winProb, model } = matchWinProb({
+          homeTeam: m.home,
+          awayTeam: m.away,
+          currentScore: m.score,
+          minute: m.minute,
+          homeXg: m.xg.home,
+          awayXg: m.xg.away,
+        });
+        return { ...m, winProb, model };
+      }),
+    };
   },
   ["understat-live"],
   { revalidate: 60 }
