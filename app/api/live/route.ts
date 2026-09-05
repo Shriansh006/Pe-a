@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
+import type { LiveMatch } from "@/lib/types";
 import type { LaLigaMatch } from "@/lib/understat";
 import {
   UnderstatError,
@@ -12,19 +13,16 @@ import { matchWinProb } from "@/lib/xg";
 
 type LiveResult = {
   source: "understat" | "football-data";
-  matches: (LaLigaMatch & {
-    winProb: { home: number; draw: number; away: number };
-    model: "dixon-coles" | "heuristic";
-  })[];
+  matches: LiveMatch[];
 };
 
 const getLiveData = unstable_cache(
   async (dateKey: string, season: string): Promise<LiveResult> => {
     let source: LiveResult["source"];
-    let matches: LaLigaMatch[];
+    let raw: LaLigaMatch[];
     try {
       source = "understat";
-      matches = await getTodayLaLigaMatches(dateKey, season);
+      raw = await getTodayLaLigaMatches(dateKey, season);
     } catch (understatErr) {
       const apiKey = process.env.FOOTBALL_DATA_API_KEY;
       if (!apiKey) {
@@ -33,22 +31,20 @@ const getLiveData = unstable_cache(
         );
       }
       source = "football-data";
-      matches = await fetchLaLigaTodayFromFootballData(dateKey, apiKey);
+      raw = await fetchLaLigaTodayFromFootballData(dateKey, apiKey);
     }
-    return {
-      source,
-      matches: matches.map((m) => {
-        const { winProb, model } = matchWinProb({
-          homeTeam: m.home,
-          awayTeam: m.away,
-          currentScore: m.score,
-          minute: m.minute,
-          homeXg: m.xg.home,
-          awayXg: m.xg.away,
-        });
-        return { ...m, winProb, model };
-      }),
-    };
+    const matches: LiveMatch[] = raw.map((m) => {
+      const { winProb, model } = matchWinProb({
+        homeTeam: m.home,
+        awayTeam: m.away,
+        currentScore: m.score,
+        minute: m.minute,
+        homeXg: m.xg.home,
+        awayXg: m.xg.away,
+      });
+      return { ...m, winProb, model };
+    });
+    return { source, matches };
   },
   ["understat-live"],
   { revalidate: 60 }
